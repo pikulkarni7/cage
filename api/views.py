@@ -11,7 +11,7 @@ from api import tasks
 @csrf_exempt
 @api_view(["POST"])
 def trigger_notify_task(request):
-    tasks.notify_user(data = request.data, exchange='weather_exchange')
+    tasks.notify_mq(data = request.data, exchange='weather_exchange')
     return HttpResponse(status=200)
 
 

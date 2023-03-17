@@ -1,17 +1,18 @@
 from __future__ import absolute_import, unicode_literals
 import requests
 import json
+
 from celery import shared_task
-from mypubsub.celery import app
+
+from mypubsub.celeryapp import app
 
 
 
 BIRDY_SERVICE_URL = "http://150.230.46.230:8000/" # HOSTED ON CLOUD
 BIRDY_BEARER_TOKEN = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NCwiZXhwIjoxNjg0MTAzNzMyfQ.Trt_slqO6ttmlfMAfmZXhA5lcNyWN4kd8NfbMSap-_U"
+
 OPENWEATHER_SERVICE_URL = "https://api.openweathermap.org/data/2.5/weather"
 OPENWEATHER_APIKEY = "51221f79a18cef82c14e9e73aad25715"
-
-
 
 
 ROUTING_KEYS = {
@@ -20,7 +21,7 @@ ROUTING_KEYS = {
 }      
         
 @shared_task
-def notify_user(data, exchange):
+def notify_mq(data, exchange):
 
     payload = {
         "lat": data['latitude'],
@@ -31,10 +32,12 @@ def notify_user(data, exchange):
         
     r = requests.get(BIRDY_SERVICE_URL + "weather/fetchcurrent", params=payload, headers={'Authorization': BIRDY_BEARER_TOKEN})
     weather_data = json.loads(r.text)
-    print(weather_data)
     routing_key = ROUTING_KEYS[weather_data['name']]
     
-    message = {"weather_data": generate_message(weather_data)}
+    message =   { 
+                    "phone_number" : data['phone_number'],
+                    "weather_data" : generate_message(weather_data)
+                }
     
     with app.producer_pool.acquire(block=True) as producer:
         producer.publish(
@@ -43,7 +46,9 @@ def notify_user(data, exchange):
             routing_key=routing_key,
         )
 
-
+    
+            
+            
 def generate_message(weather_data):
     temperature = weather_data["temp"]
     feels_like = weather_data["feels_like"]

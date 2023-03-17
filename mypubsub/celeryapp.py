@@ -1,8 +1,10 @@
-from __future__ import absolute_import, unicode_literals
+# from __future__ import absolute_import, unicode_literals
 
 import os
 import kombu
 from celery import Celery, bootsteps
+
+from utils.twilio import notify_twilio
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mypubsub.settings')
 
@@ -46,6 +48,7 @@ with app.pool.acquire(block=True) as conn:
     nyqueue.declare()
 
 
+
 class SFConsumerStep(bootsteps.ConsumerStep):
 
     def get_consumers(self, channel):
@@ -55,11 +58,12 @@ class SFConsumerStep(bootsteps.ConsumerStep):
                                accept=['json'])]
 
     def handle_message(self, body, message):
-        print('Received message on Channel_1: {0!r}'.format(body))
-        message.ack()
-
-
+            print('Received message on Channel_1: {0!r}'.format(body))
+            notify_twilio(data = body['weather_data'], phone_number=body['phone_number'])
+            message.ack()
+        
 app.steps['consumer'].add(SFConsumerStep)
+
 
 
 class NYConsumerStep(bootsteps.ConsumerStep):
@@ -70,9 +74,14 @@ class NYConsumerStep(bootsteps.ConsumerStep):
                                callbacks=[self.handle_message2],
                                accept=['json'])]
 
-    def handle_message2(self, body, message):
-        print('Received message on Channel_2: {0!r}'.format(body))
-        message.ack()
-
+    def handle_message(self, body, message):
+            print('Received message on Channel_2: {0!r}'.format(body))
+            try: 
+                print("Message forwarded")
+                notify_twilio(data = body['weather_data'], phone_number=body['phone_number'])               
+                message.ack()
+            except Exception as e:
+                print(e)
+                return None
 
 app.steps['consumer'].add(NYConsumerStep)
